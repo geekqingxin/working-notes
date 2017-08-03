@@ -2326,24 +2326,80 @@ Actor路径由锚点组成，这个锚点指明了一个Actor系统，接下来�
 
 ##### 1.2.5.3 Actor Reference and Path Equality
 
+ActorRef相等，意味着ActorRef指向了相同的目标Actor化身。当两个Actor有相同的路径并指向相同的Actor化身，则认为这两个Actor相等。指向一个终止的Actor的引用与指向另一个Actor(重建后的)，虽然有相同的路径，被认为不相等。
+
+注意，由于失败造成的Actor重启，仍然被认为是相同的化身。例如，重启对于ActorRef消费者来说是不可见的。
+
+如果你需要在一个集合中保持对Actor引用的状态跟踪，但不关心Actor化身，可以使用ActorPath作为Key，因为在比较Actor路径时，不考虑目标Actor的标识。
+
 
 ##### 1.2.5.4 Reusing Actor Paths
 
+当一个Actor停止，它的引用将指向死亡信箱(dead letter mailbox)，DeathWatch将公布它最后的转化，通常来说它是不被期望再次复活的(因为Actor生命周期不允许这样做)。然后，它是可以在随后的时间内使用相同的路径来创建一个Actor - 简单来说，如果不保留所有可用的参与者集合，就不可能执行相反的动作 - 这不是一种好的实践：突然使用一个死亡Actor的actorSelection来发送消息，在这个转化过程和别的事件之间是没有任何顺序保证的，因此路径上新的对象，可能接收到消息，但消息这些消息却是发送给之前的那个对象的。
 
-##### 1.2.5.5 The Interplay with Remote Deployment
+在特定情况下这样做是正确的，但是一定要把这种处理限制在Actor的管理者上，因为这是唯一能可靠的检测出名字取消登记，在此之前，新的子Actor将会失败。
+
+在测试期间，当测试对象依赖在特定路径上被实例化，这也是被要求的。在这种情况下，最好是mock它的管理者，以便它转发Terminated消息到测试过程的正确点上，使后者等待正确的名字取消登记。
+
+
+##### 1.2.5.5 The Interplay(相互影响) with Remote Deployment
+
+当Actor创建子Actor，Actor系统的发布者将决定新的Actor位于同一JVM或在别的节点上。在后一种情况下，Actor的创建由发生在不同的JVM上的网络连接来触发，所以是在不同的Actor系统中。远程系统将新的Actor放置在一个特定的路径下，该路径就是为了这个需求保留的，新Actor的管理者是一个远程Actor引用(表示那个Actor触发它创建)。在这种情况下，context.parent(管理者引用)和context.path.parent(Actor路径上的父节点)代表不同的Actor。不管怎样，在管理者中搜索子Actor的名字，将在远程节点上找到它，本地只保存着它的逻辑结构。如，发送给一个不能被解析的Actor引用。
+
+![](/images/1-2-5-RemoteDeployment.png)
 
 
 ##### 1.2.5.6 What is the Address part used for?
 
+跨网络发送Actor引用，由他的路径来表示。因此，路径必须完全编码所有的必要信息，并发送消息给低层的Actor。这通过编码协议来实现，由路径地址部分的主机和端口来实现。当Actor系统接收一个来自远程节点上的路径，它检测是否地址部分匹配这个Actor系统的地址，如果匹配，它将被解析到Actor本地引用上。否则，它将代表一个远程Actor引用。
+
 
 ##### 1.2.5.7 Top-Level Scopes for Actor Paths
 
+path层级的根部位于root guardian的上面，所有别的Actor都位于这个地方；它的名字为"/"。它的下层包括以下内容：
 
+* "/user": 是所有User创建的顶级Actor的守护Actor；使用ActorSystem.actorOf创建的Actor位于该路径下。
+* "/system": 是所有系统创建的顶级Actor的守护Actor，如记录监听或在Actor系统启动时自动发布的Actor。
+* "/deadLetters": 是一个死亡信箱Actor，所有发送给停止或不存在的Actor的消息重新被路由，被存放的地方(所能力所能及的：在本地JVM中的消息可能会被丢失)。
+* "/temp": 所有短生命周期，由系统创建的Actor的守护者，如所有由ActorRef.ask实现类使用的Actor。
+* "/remote": 所有远程Actor引用的管理者下的仿造路径。
 
+还需要考虑构造Actor的命名空间：在层次中的每个东西都是一个Actor，有同样的Actor功能。因此，你不仅能查找你自己创建的Actor，也可以查找系统的守护者，并向他发消息(他将忠实的丢弃掉这些消息)。这个原理意味着，对成员没有怪癖，它使整个系统更统一，更一致。
 
+如果你想读更多关于Actor系统顶级结构的内容，请查看[The Top-Level Supervisors](http://doc.akka.io/docs/akka/current/java/general/supervision.html#toplevel-supervisors)。
 
 
 #### 1.2.6 位置透明(Location Transparency)
+
+之前的部分描述了Actor路径如何被用来使位置透明。这个特性应该更进一步的解释，因为关于术语"位置透明"在不同的编程语言、不同平台和技术中的应用是有很大不同的。
+
+
+##### 1.2.6.1 Distributed by Default
+
+Akka中的每个内容都是被设计在不同的分布式设置中都是可用的：Actor的交互使用纯消息传递，并且每个内容都是异步的。这个努力的结果承担确保所有的功能在可用性上都是一样的，不管是在单JVM还是在成百上千的集群中。启用这个的关键是，从远程到本地的优化方式，替代了从本地到远程的普通方式。更多细节讨论，请查看[this classic paper](http://doc.akka.io/docs/misc/smli_tr-94-29.pdf)，为什么第二种方式是不可行的。
+
+
+##### 1.2.6.2 Ways in which Transparency is Broken
+
+Akka中真实的使用，不是现在应用所使用的方式，由于采用了分布式执行的方式，这儿可能有一些限制。最明显的是所有发送的消息都必须是串行的。还有一些不太明显的是，他包含了闭包(closure)，如果Actor是在远程节点上被创建，它被用作一个Actor工厂(例如，Props内部)。
+
+另一个结论是，所有内容需要意识到它们之间的交互全部是异步的，在计算机网络中，它意味着，可能意味着一条消息需要几分钟才能到接收者的信息中(依赖于配置)。它也意味着消息丢失的风险高于在单JVM中，在单JVM中丢失的风险可能接近于0(不难保证)。
+
+
+##### 1.2.6.3 How is Remoting Used?
+
+
+
+
+##### 1.2.6.4 Peer-to-Peer vs. Client-Server
+
+
+
+
+##### 1.2.6.5 Marking Points for Scaling Up with Routers
+
+
+
 
 #### 1.2.7 Akka和Java内存模型
 
