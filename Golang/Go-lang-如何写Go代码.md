@@ -473,7 +473,11 @@ Visit the [documentation page](https://golang.org/doc/#articles) for a set of in
 
 # 6. 寻求帮助
 
+For real-time help, ask the helpful gophers in #go-nuts on the [Freenode](http://freenode.net/) IRC server.
 
+The offical mailing list for discussion of the Go language is [Go Nuts](https://groups.google.com/group/golang-nuts).
+
+Report bugs using the [Go issue tracker](https://golang.org/issue)
 
 
 
