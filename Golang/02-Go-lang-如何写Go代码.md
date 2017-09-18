@@ -49,6 +49,8 @@ __Hello world__
 
 # 2. 如何写go代码
 
+[How to write Go code](https://golang.org/doc/code.html)
+
 ## 2.1 概述
 
 * go程序员把所有代码放在同一个workspace中
