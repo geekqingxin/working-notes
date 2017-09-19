@@ -1244,15 +1244,1102 @@ Go函数可以是闭包。闭包是一个引用函数外部的变量的函数值
 
 # 3. Methods and interfaces
 
-## 3.1
+## 3.1 Methods
+
+Go没有类，但是可以在类型上定义方法。
+
+方法是带有特殊接收器参数的函数。
+
+接收器出现在func关键字与方法之间它所拥有的参数列表中。
+
+例如，Abs方法有一个Vertex类型，被命名为v的接收器。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func (v Vertex) Abs() float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func main() {
+        v := Vertex{3, 4}
+        fmt.Println(v.Abs())
+    }
+
+## 3.2 Methods are functions
+
+Remember: 方法是带接收器参数的函数。
+
+下面示例中Abs是一个正常的函数，功能上与之前方法没有区别：
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func Abs(v Vertex) float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func main() {
+        v := Vertex{3, 4}
+        fmt.Println(Abs(v))
+    }
+
+
+## 3.3 Method continued
+
+也可以声明non-struct类型的方法。
+
+以下示例中，是一个MyFloat数字类型的Abs方法。
+
+可以只声明一个方法，接收器类型定义在与方法相同的包中。但不能声明一个方法，而接收器类型定义在别的包中(包括内置类型也不行，如int)。
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type MyFloat float64
+
+    func (f MyFloat) Abs() float64 {
+        if f < 0 {
+            return float64(-f)
+        }
+        return float64(f)
+    }
+
+    func main() {
+        f := MyFloat(-math.Sqrt2)
+        fmt.Println(f.Abs())
+    }
+
+## 3.4 Pointer receivers
+
+可以声明带pointer接收器的方法。
+
+这也意味着接收器类型有一个字面语法：对于类型T，是\*T。(T自己不能是指针，如\*int)
+
+例如，Scale方法接收器类型是*Vertex。
+
+带指针接收器的方法可以修改接收器指针的值。由于方法常常需要修改它们的接收器，因此指针接收器比值接收器更通用。
+
+对于值接收器，Scale方法操作Vertex原始的副本。这个行为与其它函数参数行为一致。Scale方法必须有一个指针接收器，来改变声明在main函数中的Vertext的值。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func (v Vertex) Abs() float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func (v *Vertex) Scale(f float64) {
+        v.X = v.X * f
+        v.Y = v.Y * f
+    }
+
+    func main() {
+        v := Vertex{3, 4}
+        v.Scale(10)
+        fmt.Println(v.Abs())
+    }
+
+
+## 3.5 Pointers and functions
+
+在这部分，我们看到Abs和Scale方法被重写成了函数。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func Abs(v Vertex) float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func Scale(v *Vertex, f float64) {
+        v.X = v.X * f
+        v.Y = v.Y * f
+    }
+
+    func main() {
+        v := Vertex{3, 4}
+        Scale(&v, 10)
+        fmt.Println(Abs(v))
+    }
+
+## 3.6 Methods and pointer indirection
+
+
+与之前两段程序相比较，你可能注意到带指针参数的函数，必须接收指针。
+
+    var v Vertex
+
+    ScaleFunc(v) // Compile error
+    ScaleFunc(&v) // OK
+
+但是带指针接收器方法，既可以接收值，也可以接收指针：
+
+    var v Vertex
+
+    v.Scale(5) // OK
+    p := &v
+    p.Scale(10) // OK
+
+对于v.Scale(5)，尽管v是一个值不是指针，带指针接收器的方法也是自动被调用。做为一种便利方式，Go把v.Scale(5)解析成(&v).Scale(5)，因为Scale方法拥有一个指针接收器。
+
+
+    package main
+
+    import "fmt"
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func (v *Vertex) Scale(f float64) {
+        v.X = v.X * f
+        v.Y = v.Y * f
+    }
+
+    func ScaleFunc(v *Vertex, f float64) {
+        v.X = v.X * f
+        v.Y = v.Y * f
+    }
+
+    func main() {
+        v := Vertex{3, 4}
+        v.Scale(2)
+        ScaleFunc(&v, 10)
+
+        p := &Vertex{4, 3}
+        p.Scale(3)
+        ScaleFunc(p, 8)
+
+        fmt.Println(v, p)
+    }
+
+## 3.7 Methods and pointer indirection (2)
+
+同样的事情发生在相反的一面。
+
+传入函数的参数必须是一个特定类型的值：
+
+    var v Vertex
+    
+    fmt.Println(AbsFunc(v)) // OK
+    fmt.Println(AbsFunc(&v)) // Compile error
+
+带值接收器的方法，既可以是一个值也可以是一个指针：
+
+    var v Vertex
+
+    fmt.Println(v.Abs()) // OK
+    p := &v
+
+    fmt.Println(p.Abs()) // OK
+
+在这种情况下，p.Abs()会被解析成(*p).Abs()。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func (v Vertex) Abs() float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func AbsFunc(v Vertex) float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func main() {
+        v := Vertex{3, 4}
+        fmt.Println(v.Abs())
+        fmt.Println(AbsFunc(v))
+
+        p := &Vertex{4, 3}
+        fmt.Println(p.Abs())
+        fmt.Println(AbsFunc(*p))
+    }
+
+
+## 3.8 Choosing a value or pointer receiver
+
+有两个原因要使用指针接收器：
+
+* 为了方法可以修改接收器指针指向的值
+* 避免在方法调用时复制值。如果接收器是一个大的struct结构，可能更高效。
+
+在这个示例中，*Vertex类型的Scale和Abs，尽管Abs方法不需要修改它的接收器。
+
+通常情况下，类型中所有的方法应该统一是值接收器或指针接收器，而不是二者混合。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func (v *Vertex) Scale(f float64) {
+        v.X = v.X * f
+        v.Y = v.Y * f
+    }
+
+    func (v *Vertex) Abs() float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+    func main() {
+        v := &Vertex{3, 4}
+        fmt.Printf("Before scaling: %+v, Abs: %v\n", v, v.Abs())
+        v.Scale(5)
+        fmt.Printf("After scaling: %+v, Abs: %v\n", v, v.Abs())
+    }
+
+
+## 3.9 Interfaces
+
+接口类型是定义了一序列的方法签名。
+
+接口类型的值可以持有任何实现这些方法的值。
+
+> NOTE
+> 
+> 在示例的22行有一个错误。Vertex(值类型)不能实现Abser，因为Abs方法是以*Vertext(指针类型)定义的。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type Abser interface {
+        Abs() float64
+    }
+
+    func main() {
+        var a Abser
+        f := MyFloat(-math.Sqrt2)
+        v := Vertex{3, 4}
+
+        a = f  // a MyFloat implements Abser
+        a = &v // a *Vertex implements Abser
+
+        // In the following line, v is a Vertex (not *Vertex)
+        // and does NOT implement Abser.
+        a = v
+
+        fmt.Println(a.Abs())
+    }
+
+    type MyFloat float64
+
+    func (f MyFloat) Abs() float64 {
+        if f < 0 {
+            return float64(-f)
+        }
+        return float64(f)
+    }
+
+    type Vertex struct {
+        X, Y float64
+    }
+
+    func (v *Vertex) Abs() float64 {
+        return math.Sqrt(v.X*v.X + v.Y*v.Y)
+    }
+
+
+
+错误信息：
+
+    tmp/sandbox350658444/main.go:22:4: cannot use v (type Vertex) as type Abser in assignment:
+	Vertex does not implement Abser (Abs method has pointer receiver)
+
+
+## 3.10 Interfaces are implemented implicitly
+
+类型实现一个接口，就是实现它的方法。这儿没有明确的声明，没有"implements"关键字。
+
+隐式接口从它的实现中解耦了接口定义，可以出现在任何包中而不需要预先设定。
+
+
+    package main
+
+    import "fmt"
+
+    type I interface {
+        M()
+    }
+
+    type T struct {
+        S string
+    }
+
+    // This method means type T implements the interface I,
+    // but we don't need to explicitly declare that it does so.
+    func (t T) M() {
+        fmt.Println(t.S)
+    }
+
+    func main() {
+        var i I = T{"hello"}
+        i.M()
+    }
+
+
+## 3.11 Interface values
+
+下面会解析，接口值可以被认为是值元组或具体类型的元组。
+
+    (value, type)
+
+接口值持有一个特定底层具体类型的值。
+
+调用接口值上的方法，将执行底层类型上的同名方法。
+
+
+    package main
+
+    import (
+        "fmt"
+        "math"
+    )
+
+    type I interface {
+        M()
+    }
+
+    type T struct {
+        S string
+    }
+
+    func (t *T) M() {
+        fmt.Println(t.S)
+    }
+
+    type F float64
+
+    func (f F) M() {
+        fmt.Println(f)
+    }
+
+    func main() {
+        var i I
+
+        i = &T{"Hello"}
+        describe(i)
+        i.M()
+
+        i = F(math.Pi)
+        describe(i)
+        i.M()
+    }
+
+    func describe(i I) {
+        fmt.Printf("(%v, %T)\n", i, i)
+    }
+
+
+## 3.12 Interface values with nil underlying values
+
+如果接口中具体值是nil，方法将用一个nil接收器调用。
+
+在一些语言中，这将触发一个空指针异常，但是在Go中，通用的方法编写试是使用一个nil接收器来处理。
+
+NOTE：接口值持有一个nil，但是具体自己可以是non-nil。
+
+
+    package main
+
+    import "fmt"
+
+    type I interface {
+        M()
+    }
+
+    type T struct {
+        S string
+    }
+
+    func (t *T) M() {
+        if t == nil {
+            fmt.Println("<nil>")
+            return
+        }
+        fmt.Println(t.S)
+    }
+
+    func main() {
+        var i I
+
+        var t *T
+        i = t
+        describe(i)
+        i.M()
+
+        i = &T{"hello"}
+        describe(i)
+        i.M()
+    }
+
+    func describe(i I) {
+        fmt.Printf("(%v, %T)\n", i, i)
+    }
+
+
+## 3.13 Nil interface values
+
+nil接口值可以持有值，也可以持有具体类型。
+
+调用nil接口上的方法会有一个run-time error，因为接口元组内部没有类型来指定具体被调用的方法。
+
+
+    package main
+
+    import "fmt"
+
+    type I interface {
+        M()
+    }
+
+    func main() {
+        var i I
+        describe(i)
+        i.M()
+    }
+
+    func describe(i I) {
+        fmt.Printf("(%v, %T)\n", i, i)
+    }
+
+
+错误信息：
+
+    (<nil>, <nil>)
+    panic: runtime error: invalid memory address or nil pointer dereference
+    [signal SIGSEGV: segmentation violation code=0xffffffff addr=0x0 pc=0xd4b87]
+    
+    goroutine 1 [running]:
+    main.main()
+    	/tmp/sandbox151068630/main.go:12 +0x27
+
+## 3.14 The empty interface
+
+
+不包含任何方法的接口类型被称为empty interface。
+
+    interface{}
+
+空接口可以持有任意类型的value。(每个类型至少实现零个方法。)
+
+空接口被用来处理未知类型的值。例如，fmt.Print任意个interface{}类型的参数。
+
+    package main
+
+    import "fmt"
+
+    func main() {
+        var i interface{}
+        describe(i)
+
+        i = 42
+        describe(i)
+
+        i = "hello"
+        describe(i)
+    }
+
+    func describe(i interface{}) {
+        fmt.Printf("(%v, %T)\n", i, i)
+    }
+
+
+## 3.15 Type assertions
+
+
+type assertion提供了访问接口类型的底层具体值的方式。
+
+    t := i.(T)
+
+这个语句段言接口值i持有的具体类型T，分配底层T的值给变量t。
+
+如果i不持有T，该语句将产生一个panic。
+
+为了测试是否接口值持有一个特定类型，type assertion可以返回两个值：底层的值和一个报告是否断言成功的一个boolean值。
+
+    t, ok := i.(T)
+
+如果i持有T，t将是底层的值，ok将是true。
+
+否则，ok为false，t将是T类型的zero value，不会产生panic。
+
+这与map的语法规则类似。
+
+
+    package main
+
+    import "fmt"
+
+    func main() {
+        var i interface{} = "hello"
+
+        s := i.(string)
+        fmt.Println(s)
+
+        s, ok := i.(string)
+        fmt.Println(s, ok)
+
+        f, ok := i.(float64)
+        fmt.Println(f, ok)
+
+        f = i.(float64) // panic
+        fmt.Println(f)
+    }
+
+
+## 3.16 Type switches
+
+type switch是一个概念，允许多个type assertion串行执行。
+
+类型切换和正常switch语句一样，但类型切换是针对类型的(不是值)，这些值是与接口值所持有的值类型进行比较。
+
+    switch v := i.(type) {
+
+    case T:
+        // here v has type T
+    case S:
+        // here v has type S
+    default:
+        // no match; here v has the same type as i
+    }
+
+类型切换的声明与类型assertion语法是一样的：i.(T)，但是特定类型T是可以用关键字type替换的。
+
+这个切换语句测试是否接口值i持有一个类型T或S的值。在T或S的情况中，变量v是T类型或S类型，并持有被i所持有的值。在默认情况下(如果不匹配)，变量v的类型与接口类型相同，值是i所持有的值。
+
+
+    package main
+
+    import "fmt"
+
+    func do(i interface{}) {
+        switch v := i.(type) {
+        case int:
+            fmt.Printf("Twice %v is %v\n", v, v*2)
+        case string:
+            fmt.Printf("%q is %v bytes long\n", v, len(v))
+        default:
+            fmt.Printf("I don't know about type %T!\n", v)
+        }
+    }
+
+    func main() {
+        do(21)
+        do("hello")
+        do(true)
+    }
+
+## 3.17 Stringers
+
+最普遍存在的接口之一是定义在fmt包中的Stringer。
+
+    type Stringer interface {
+
+        String() string
+    }
+
+Stringer是可以把他自己描述成string的一种类型。fmt包(许多别的包)通过查找这个接口，来输出值。
+
+
+    package main
+
+    import "fmt"
+
+    type Person struct {
+        Name string
+        Age  int
+    }
+
+    func (p Person) String() string {
+        return fmt.Sprintf("%v (%v years)", p.Name, p.Age)
+    }
+
+    func main() {
+        a := Person{"Arthur Dent", 42}
+        z := Person{"Zaphod Beeblebrox", 9001}
+        fmt.Println(a, z)
+    }
+
+
+## 3.18 Errors
+
+Go程序使用error值来表示error状态。
+
+error类型是一个与fmt.Stringer类似的内置接口：
+
+    type error interface {
+
+        Error() string
+    }
+
+正如fmt.Stringer，在打印错误值时，fmt包会查找error接口。
+
+函数常常返回error值，调用代码通过测试是否error是nil来处理错误。
+
+    i, err := strconv.Atoi("42")
+    if err != nil {
+
+        fmt.Printf("couldn't convert number: %v\n", err)
+        return
+    }
+    fmt.Println("Converted integer: ", i)
+
+nil error表示成功；non-nil error表示失败。
+
+
+    package main
+
+    import (
+        "fmt"
+        "time"
+    )
+
+    type MyError struct {
+        When time.Time
+        What string
+    }
+
+    func (e *MyError) Error() string {
+        return fmt.Sprintf("at %v, %s",
+        e.When, e.What)
+    }
+
+    func run() error {
+        return &MyError{
+            time.Now(),
+            "it didn't work",
+        }
+    }
+
+    func main() {
+        if err := run(); err != nil {
+            fmt.Println(err)
+        }
+    }
+
+
+## 3.19 Readers
+
+io包描述了io.Reader接口，实现了读取数据流。
+
+Go标准库包含了这个接口的[许多实现](https://golang.org/search?q=Read#Global)，包括文件，网络连接，压缩器(compressor)，加密(cipher)及其它。
+
+io.Reader接口有一个Read方法：
+
+    func (T) Read(b []byte) (n int, err error)
+
+Read用数据填充给定的字节片，返回填充的字节数及error值。当流结束，它会返回一个io.EOF error。
+
+下面的示例创建了一个strings.Reader，一次处理输出中的8个字节。
+
+
+    package main
+
+    import (
+        "fmt"
+        "io"
+        "strings"
+    )
+
+    func main() {
+        r := strings.NewReader("Hello, Reader!")
+
+        b := make([]byte, 8)
+        for {
+            n, err := r.Read(b)
+            fmt.Printf("n = %v err = %v b = %v\n", n, err, b)
+            fmt.Printf("b[:n] = %q\n", b[:n])
+            if err == io.EOF {
+                break
+            }
+        }
+    }
+
+
+## 3.20 Images
+
+[image包](https://golang.org/pkg/image/#Image)定义了Image接口：
+
+    package image
+
+    type Image interface {
+
+        ColorModel() color.Model
+        Bounds() Rectangle
+        At(x, y int) color.Color
+    }
+
+
+> NOTE
+> 
+> Bounds方法的Rectangle返回值实际上是一个image.Rectangle，是被定义在image包中的。
+
+
+[更多细节，请查阅](https://golang.org/pkg/image/#Image)
+
+color.Color和color.Model类型也是接口，但是我们会忽略它们，而使用预置实现：color.RGBA和color.RGBAModel。这些接口或类型由[image/color package](https://golang.org/pkg/image/color/)来定义的。
 
 
 # 4. Concurrency
 
+## 4.1 Goroutines
+
+goroutine是一个由Go runtime管理的轻量级线程。
+
+    go f(x, y, z)
+
+开启一个新的goroutine
+
+    f(x, y, z)
+
+f, x, y和z的计算发生在当前goroutine，f的执行发生在新的goroutine中。
+
+Goroutine运行在相同的地址空间，因此访问共享内存时需要同步。sync包提供了有用的原语，尽管在Go中有其它原语，大多数情况中你不需要这些原语。
 
 
+    package main
+
+    import (
+        "fmt"
+        "time"
+    )
+
+    func say(s string) {
+        for i := 0; i < 5; i++ {
+            time.Sleep(100 * time.Millisecond)
+            fmt.Println(s)
+        }
+    }
+
+    func main() {
+        go say("world")
+        say("hello")
+    }
 
 
+## 4.2 Channels
+
+Channel是一个有类型导管，你可以管道操作符(<-)来发送或接收值。
+
+
+    ch <- v // Send v to channel ch.
+    v := <-ch // Receive from ch, and assign value to v
+
+箭头方向表达了数据流的方向。
+
+像map和slice一样，channel必须在使用前被创建：
+
+    ch := make(chan int)
+
+默认情况，发送与接收块等待直到另一端准备好。这允许goroutine之间同步，不需要明确的锁或条件变量。
+
+示例代码sum在slice中的数字，在两个goroutine之间分配工作。一旦两个goroutine完成估算，它将计算最终的结果。
+
+
+    package main
+
+    import "fmt"
+
+    func sum(s []int, c chan int) {
+        sum := 0
+        for _, v := range s {
+            sum += v
+        }
+        c <- sum // send sum to c
+    }
+
+    func main() {
+        s := []int{7, 2, 8, -9, 4, 0}
+
+        c := make(chan int)
+        go sum(s[:len(s)/2], c)
+        go sum(s[len(s)/2:], c)
+        x, y := <-c, <-c // receive from c
+
+        fmt.Println(x, y, x+y)
+    }
+
+
+## 4.3 Buffered Channels
+
+channel可以是buffered。可以通过make函数的第二个参数来指定buffer长度，初始化buffered channel：
+
+    ch := make(chan int, 100)
+
+只有当buffer满时，才会发送到buffered channel块。当buffer是空时，才会接收块。
+
+
+    package main
+
+    import "fmt"
+
+    func main() {
+        ch := make(chan int, 2)
+        ch <- 1
+        ch <- 2
+        fmt.Println(<-ch)
+        fmt.Println(<-ch)
+    }
+
+
+## 4.4 Range and Close
+
+sender可以close通道，来指示没有更多的值要发送。Receiver可以通过在接收表达式上声明第二个参数，来测试是否channel被关闭。
+
+    v, ok := <-ch
+
+ok是false，表示没有更多的值被接收，并且channel也被关闭了。
+
+for i := range c循环从通道中重复的接收值，只到它被关闭。
+
+NOTE: 应该只有发送者来关闭通道，决不应该是接收者。发送到一个关闭的通道，将造成一个panic。
+
+Another note：channel不像文件，你通常不需要关闭它。当接收者被告知这儿没有更多的值进来，关闭才是必要的，例如，为了终止一个range循环。
+
+
+    package main
+
+    import (
+        "fmt"
+    )
+
+    func fibonacci(n int, c chan int) {
+        x, y := 0, 1
+        for i := 0; i < n; i++ {
+            c <- x
+            x, y = y, x+y
+        }
+        close(c)
+    }
+
+    func main() {
+        c := make(chan int, 10)
+        go fibonacci(cap(c), c)
+        for i := range c {
+            fmt.Println(i)
+        }
+    }
+
+
+## 4.5 Select
+
+select语句让goroutine在多个通讯操作上等待。
+
+select块一直等到它的某个case可运行，然后它执行这个case。如果多个都ready，它将随机选择一个。
+
+
+    package main
+
+    import "fmt"
+
+    func fibonacci(c, quit chan int) {
+        x, y := 0, 1
+        for {
+            select {
+            case c <- x:
+                x, y = y, x+y
+            case <-quit:
+                fmt.Println("quit")
+            return
+            }
+        }
+    }
+
+    func main() {
+        c := make(chan int)
+        quit := make(chan int)
+        go func() {
+            for i := 0; i < 10; i++ {
+                fmt.Println(<-c)
+            }
+            quit <- 0
+        }()
+        fibonacci(c, quit)
+    }
+
+## 4.6 Default Selection
+
+在select中如果没有别的case是ready，default将被执行。
+
+使用default来尝试做无阻塞的发送或接收：
+
+    select {
+    case i := <-c:
+        // use i
+    default:
+        // receiving from c would block
+    }
+
+示例代码：
+
+
+    package main
+
+    import (
+        "fmt"
+        "time"
+    )
+
+    func main() {
+        tick := time.Tick(100 * time.Millisecond)
+        boom := time.After(500 * time.Millisecond)
+        for {
+            select {
+            case <-tick:
+                    fmt.Println("tick.")
+            case <-boom:
+                    fmt.Println("BOOM!")
+                    return
+            default:
+                    fmt.Println("    .")
+                    time.Sleep(50 * time.Millisecond)
+            }
+        }
+    }
+
+
+## 4.7 syc.Mutex
+
+我们看到了channel是善长在goroutine之间进行通信的。
+
+但是如果我不需要通信呢？我们只想保证在同一时间只有一个goroutine可以访问某个变量，避免冲突？
+
+这个概念称为mutual exclusion(互相排它)，数据结构规范称为：mutex(互斥)。
+
+Go标准库通过sync.Mutex实现了mutual exclusion，它有两个方法：
+
+* Lock
+* Unlock
+
+我们可以定义一个代码块只能在mutual exclusion中被执行，通过在它外面增加Lock和Unlock，就像下面示例中Inc方法展示的那样。
+
+我们也可以使用defer确保mutex将被unlocked，就像示例中Value方法展示的那样。
+
+
+    package main
+
+    import (
+        "fmt"
+        "sync"
+        "time"
+    )
+
+    // SafeCounter is safe to use concurrently.
+    type SafeCounter struct {
+        v   map[string]int
+        mux sync.Mutex
+    }
+
+    // Inc increments the counter for the given key.
+    func (c *SafeCounter) Inc(key string) {
+        c.mux.Lock()
+        // Lock so only one goroutine at a time can access the map c.v.
+        c.v[key]++
+        c.mux.Unlock()
+    }
+
+    // Value returns the current value of the counter for the given key.
+    func (c *SafeCounter) Value(key string) int {
+        c.mux.Lock()
+        // Lock so only one goroutine at a time can access the map c.v.
+        defer c.mux.Unlock()
+        return c.v[key]
+    }
+
+    func main() {
+        c := SafeCounter{v: make(map[string]int)}
+        for i := 0; i < 1000; i++ {
+            go c.Inc("somekey")
+        }
+
+        time.Sleep(time.Second)
+        fmt.Println(c.Value("somekey"))
+    }
+
+
+# 5. Where to Go from here ...
+
+[安装Go](https://golang.org/dl/)
+
+一旦你安装完Go，[Go的文档](https://golang.org/doc/)是继续学习的好地方。它包含references，tutorials，videos and more。
+
+学习怎么样组织和开始写Go代码，看[录像](https://www.youtube.com/watch?v=XCsL89YtqCs)或读[How to Write Go Code](https://golang.org/doc/code.html)
+
+如果你需要标准库的帮助，[请查看](https://golang.org/pkg/)。
+
+如果是语言本身，可以查阅[语言规范](https://golang.org/ref/spec)。
+
+进一步了解Go的并发模型，请看[Go并发模式](https://www.youtube.com/watch?v=f6kdp27TYZs)([slides](https://talks.golang.org/2012/concurrency.slide))、[高级Go并发模式](https://www.youtube.com/watch?v=QDDwwePbDtw)([slides](https://talks.golang.org/2013/advconc.slide))和[通过共享内存进行通信](https://golang.org/doc/codewalk/sharemem/)。
+
+开始写web应用，请看[简单的编程环境](https://vimeo.com/53221558)([slides](https://talks.golang.org/2012/simple.slide))和读[写Web应用](https://golang.org/doc/articles/wiki/)的tutorial。
+
+[First Class Functions in Go](https://golang.org/doc/codewalk/functions/)给出了一个关于Go函数类型的有趣观点。
+
+[Go blog](https://blog.golang.org/)有大量的归档的Go文档。
+
+更多的资料，请访问[golang.org](https://golang.org/)。
 
 
 
