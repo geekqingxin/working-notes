@@ -246,8 +246,11 @@ Django支持所有的数据库关系：many-to-one, many-to-many和one-to-one。
     python3 manage.py createsuperuser
 
     # 输入用户名
+        admin
     # 输入邮箱
+        liuyf8688@126.com
     # 输入密码
+        1qaz@WSX
 
 ## 5.2 启动开发服务器
 
@@ -278,6 +281,28 @@ Django支持所有的数据库关系：many-to-one, many-to-many和one-to-one。
 点击某个问题，可以对问题进行修改。
 
 
+
+# X. 问题
+
+## X.1 忘记admin密码
+
+    python manage.py createsuperuser
+
+    # 输入用户名
+
+        liuyf
+
+    # 输入邮箱
+        
+        liuyf8688@126.com
+
+    # 输入密码
+
+        1qaz@WSX
+
+    # 输入确认密码
+
+        1qaz@WSX
     
 
 
